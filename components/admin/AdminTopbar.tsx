@@ -1,10 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, LogOut, UserRound } from "lucide-react";
+import { LogOut, UserRound } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -40,12 +40,7 @@ export function AdminTopbar() {
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border bg-card px-4 sm:px-6">
       <h1 className="font-heading text-lg font-semibold text-foreground">{title}</h1>
 
-      <div className="flex flex-1 items-center justify-end gap-3">
-        <div className="relative hidden max-w-xs flex-1 sm:block">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Cari..." className="pl-8" />
-        </div>
-
+      <div className="flex items-center justify-end gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <Avatar>
@@ -55,9 +50,11 @@ export function AdminTopbar() {
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Admin</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <UserRound className="h-4 w-4" />
-              Profil
+            <DropdownMenuItem asChild>
+              <Link href="/admin/settings">
+                <UserRound className="h-4 w-4" />
+                Profil
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut className="h-4 w-4" />
