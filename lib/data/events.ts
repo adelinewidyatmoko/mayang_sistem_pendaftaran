@@ -16,6 +16,7 @@ function mapEvent(row: EventRow): EventItem {
     eventEnd: row.event_end,
     registrationStart: row.registration_start,
     registrationDeadline: row.registration_deadline,
+    timezone: row.timezone,
     maxParticipants: row.max_participants,
     registeredCount: row.registered_count,
     requirements: row.requirements,
@@ -76,6 +77,7 @@ export type EventInput = {
   eventEnd: string;
   registrationStart: string;
   registrationDeadline: string;
+  timezone: string;
   maxParticipants: number;
   requirements: string[];
   messageEnabled: boolean;
@@ -94,6 +96,7 @@ function toRow(input: Partial<EventInput>): Database["public"]["Tables"]["events
   if (input.registrationStart !== undefined) row.registration_start = input.registrationStart;
   if (input.registrationDeadline !== undefined)
     row.registration_deadline = input.registrationDeadline;
+  if (input.timezone !== undefined) row.timezone = input.timezone;
   if (input.maxParticipants !== undefined) row.max_participants = input.maxParticipants;
   if (input.requirements !== undefined) row.requirements = input.requirements;
   if (input.messageEnabled !== undefined) row.message_enabled = input.messageEnabled;
@@ -117,6 +120,7 @@ export async function createEvent(
       event_end: input.eventEnd,
       registration_start: input.registrationStart,
       registration_deadline: input.registrationDeadline,
+      timezone: input.timezone,
       max_participants: input.maxParticipants,
       requirements: input.requirements,
       message_enabled: input.messageEnabled,

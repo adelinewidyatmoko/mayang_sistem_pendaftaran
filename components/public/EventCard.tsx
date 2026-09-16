@@ -44,7 +44,8 @@ export function EventCard({ event, index = 0 }: { event: EventItem; index?: numb
           <div className="flex items-center gap-2">
             <CalendarIcon className="h-4 w-4 text-teal" />
             <span>
-              {formatEventDate(event.eventStart)} · {formatEventTime(event.eventStart)}
+              {formatEventDate(event.eventStart, event.timezone)} ·{" "}
+              {formatEventTime(event.eventStart, event.timezone)}
             </span>
           </div>
           <div className="flex items-center gap-2">

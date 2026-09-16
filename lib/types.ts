@@ -13,6 +13,9 @@ export type EventItem = {
   eventEnd: string;
   registrationStart: string;
   registrationDeadline: string;
+  // IANA zone the admin picked when setting the dates above (Asia/Jakarta,
+  // Asia/Makassar, or Asia/Jayapura) — see lib/timezone.ts.
+  timezone: string;
   maxParticipants: number;
   registeredCount: number;
   requirements: string[];

@@ -79,11 +79,12 @@ export default async function EventDetailPage({ params }: PageProps<"/events/[id
               <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-foreground/70">
                 <span className="inline-flex items-center gap-2">
                   <CalendarIcon className="h-4 w-4 text-teal" />
-                  {formatEventDate(event.eventStart)}
+                  {formatEventDate(event.eventStart, event.timezone)}
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <ClockIcon className="h-4 w-4 text-teal" />
-                  {formatEventTime(event.eventStart)} – {formatEventTime(event.eventEnd)}
+                  {formatEventTime(event.eventStart, event.timezone)} –{" "}
+                  {formatEventTime(event.eventEnd, event.timezone)}
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <PinIcon className="h-4 w-4 text-teal" />
@@ -129,7 +130,7 @@ export default async function EventDetailPage({ params }: PageProps<"/events/[id
                 <div className="flex items-center justify-between">
                   <EventStatusBadge status={status} />
                   <span className="text-xs text-foreground/50">
-                    Ditutup {formatEventDate(event.registrationDeadline)}
+                    Ditutup {formatEventDate(event.registrationDeadline, event.timezone)}
                   </span>
                 </div>
 

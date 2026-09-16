@@ -128,10 +128,10 @@ export default function AdminEventsPage() {
                     <TableRow key={event.id}>
                       <TableCell className="font-medium">{event.title}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatEventDate(event.eventStart)}
+                        {formatEventDate(event.eventStart, event.timezone)}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatEventDate(event.registrationDeadline)}
+                        {formatEventDate(event.registrationDeadline, event.timezone)}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{config.label}</Badge>

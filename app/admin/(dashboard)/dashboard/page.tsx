@@ -107,7 +107,7 @@ export default function AdminDashboardPage() {
                         {event.title}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {formatEventDate(event.eventStart)} · {event.location}
+                        {formatEventDate(event.eventStart, event.timezone)} · {event.location}
                       </p>
                       <Badge variant="outline" className="mt-1.5">
                         {config.label}
@@ -148,7 +148,7 @@ export default function AdminDashboardPage() {
                         {event?.title ?? registration.eventId}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatEventDate(registration.createdAt)}
+                        {formatEventDate(registration.createdAt, event?.timezone)}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{config?.label ?? "Terdaftar"}</Badge>

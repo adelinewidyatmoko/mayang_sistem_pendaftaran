@@ -242,10 +242,10 @@ export default function AdminAttendeesPage() {
                         {event?.title ?? registration.eventId}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {event ? formatEventDate(event.eventStart) : "-"}
+                        {event ? formatEventDate(event.eventStart, event.timezone) : "-"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatEventDate(registration.createdAt)}
+                        {formatEventDate(registration.createdAt, event?.timezone)}
                       </TableCell>
                       <TableCell>
                         <Badge variant={isCompleted ? "outline" : "default"}>
@@ -332,7 +332,7 @@ export default function AdminAttendeesPage() {
                 <DetailRow label="Tanggal Lahir" value={formatEventDate(selected.dateOfBirth)} />
                 <DetailRow
                   label="Waktu Pendaftaran"
-                  value={formatEventDate(selected.createdAt)}
+                  value={formatEventDate(selected.createdAt, eventById.get(selected.eventId)?.timezone)}
                 />
                 <div className="col-span-2">
                   <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

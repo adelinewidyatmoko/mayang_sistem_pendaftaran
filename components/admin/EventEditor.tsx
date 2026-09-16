@@ -9,18 +9,32 @@ import { EventItem } from "@/lib/types";
 import { deriveEventStatus, eventStatusConfig } from "@/lib/event-status";
 import { useAdminEvents } from "@/lib/admin/events-store";
 import { EventInput } from "@/lib/data/events";
+import {
+  DEFAULT_TIMEZONE,
+  INDONESIA_TIMEZONES,
+  isoToZonedDatetimeLocal,
+  zonedDatetimeLocalToIso,
+} from "@/lib/timezone";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type FormValues = {
   title: string;
   description: string;
   coverImage: string;
   location: string;
+  timezone: string;
   eventStart: string;
   eventEnd: string;
   registrationStart: string;
@@ -32,33 +46,18 @@ type FormValues = {
   published: boolean;
 };
 
-// <input type="datetime-local"> works in the browser's local wall-clock time
-// with no timezone marker (e.g. "2026-08-26T12:16") — it is NOT the same as
-// an ISO/UTC string. Sending that raw string straight to a `timestamptz`
-// column lets Postgres interpret it using the database's session timezone
-// (UTC) instead of the admin's actual local time, silently shifting every
-// event/registration date by the local UTC offset. These two helpers do the
-// conversion explicitly in both directions.
-function toDatetimeLocalValue(isoString: string): string {
-  const date = new Date(isoString);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function toIsoString(datetimeLocalValue: string): string {
-  return new Date(datetimeLocalValue).toISOString();
-}
-
 function toFormValues(event: EventItem): FormValues {
+  const timezone = event.timezone || DEFAULT_TIMEZONE;
   return {
     title: event.title,
     description: event.description,
     coverImage: event.coverImage ?? "",
     location: event.location,
-    eventStart: toDatetimeLocalValue(event.eventStart),
-    eventEnd: toDatetimeLocalValue(event.eventEnd),
-    registrationStart: toDatetimeLocalValue(event.registrationStart),
-    registrationDeadline: toDatetimeLocalValue(event.registrationDeadline),
+    timezone,
+    eventStart: isoToZonedDatetimeLocal(event.eventStart, timezone),
+    eventEnd: isoToZonedDatetimeLocal(event.eventEnd, timezone),
+    registrationStart: isoToZonedDatetimeLocal(event.registrationStart, timezone),
+    registrationDeadline: isoToZonedDatetimeLocal(event.registrationDeadline, timezone),
     maxParticipants: event.maxParticipants,
     requirements: event.requirements.join("\n"),
     messageEnabled: event.messageEnabled,
@@ -72,6 +71,7 @@ const emptyForm: FormValues = {
   description: "",
   coverImage: "",
   location: "",
+  timezone: DEFAULT_TIMEZONE,
   eventStart: "",
   eventEnd: "",
   registrationStart: "",
@@ -142,10 +142,14 @@ export function EventEditor({
       description: formValues.description,
       coverImage: formValues.coverImage || null,
       location: formValues.location,
-      eventStart: toIsoString(formValues.eventStart),
-      eventEnd: toIsoString(formValues.eventEnd),
-      registrationStart: toIsoString(formValues.registrationStart),
-      registrationDeadline: toIsoString(formValues.registrationDeadline),
+      timezone: formValues.timezone,
+      eventStart: zonedDatetimeLocalToIso(formValues.eventStart, formValues.timezone),
+      eventEnd: zonedDatetimeLocalToIso(formValues.eventEnd, formValues.timezone),
+      registrationStart: zonedDatetimeLocalToIso(formValues.registrationStart, formValues.timezone),
+      registrationDeadline: zonedDatetimeLocalToIso(
+        formValues.registrationDeadline,
+        formValues.timezone
+      ),
       maxParticipants: formValues.maxParticipants,
       requirements,
       messageEnabled: formValues.messageEnabled,
@@ -305,9 +309,32 @@ export function EventEditor({
               />
             </div>
 
+            <div className="grid gap-1.5">
+              <Label htmlFor="timezone">Zona Waktu Event</Label>
+              <Select
+                value={formValues.timezone}
+                onValueChange={(v) => setFormValues((prev) => ({ ...prev, timezone: v }))}
+              >
+                <SelectTrigger id="timezone" className="w-full sm:w-64">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {INDONESIA_TIMEZONES.map((tz) => (
+                    <SelectItem key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Semua jam di bawah ini (mulai/selesai event, mulai/batas pendaftaran) mengikuti zona
+                yang dipilih di sini — bukan zona komputer kamu.
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
-                <Label htmlFor="eventStart">Tanggal &amp; Waktu Mulai (WIB)</Label>
+                <Label htmlFor="eventStart">Tanggal &amp; Waktu Mulai</Label>
                 <Input
                   id="eventStart"
                   type="datetime-local"
@@ -316,7 +343,7 @@ export function EventEditor({
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="eventEnd">Tanggal &amp; Waktu Selesai (WIB)</Label>
+                <Label htmlFor="eventEnd">Tanggal &amp; Waktu Selesai</Label>
                 <Input
                   id="eventEnd"
                   type="datetime-local"
@@ -325,13 +352,10 @@ export function EventEditor({
                 />
               </div>
             </div>
-            <p className="-mt-2 text-xs text-muted-foreground">
-              Semua jam di form ini mengikuti jam lokal komputer kamu — pastikan zona waktu komputer sudah WIB (Asia/Jakarta) sebelum mengisi, karena browser tidak menandai zona waktunya secara eksplisit.
-            </p>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
-                <Label htmlFor="registrationStart">Mulai Pendaftaran (WIB)</Label>
+                <Label htmlFor="registrationStart">Mulai Pendaftaran</Label>
                 <Input
                   id="registrationStart"
                   type="datetime-local"
@@ -342,7 +366,7 @@ export function EventEditor({
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="registrationDeadline">Batas Pendaftaran (WIB)</Label>
+                <Label htmlFor="registrationDeadline">Batas Pendaftaran</Label>
                 <Input
                   id="registrationDeadline"
                   type="datetime-local"

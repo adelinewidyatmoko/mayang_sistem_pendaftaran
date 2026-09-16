@@ -61,9 +61,9 @@ export function buildRegistrationsCsv(
       registration.origin,
       registration.dateOfBirth,
       event?.title ?? registration.eventId,
-      event ? formatEventDate(event.eventStart) : "",
+      event ? formatEventDate(event.eventStart, event.timezone) : "",
       event?.location ?? "",
-      formatEventDate(registration.createdAt),
+      formatEventDate(registration.createdAt, event?.timezone),
       status,
       registration.message ?? "",
     ].map((field) => escapeCsvField(String(field)));

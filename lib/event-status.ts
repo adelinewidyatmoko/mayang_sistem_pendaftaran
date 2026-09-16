@@ -1,4 +1,5 @@
 import { EventItem, EventStatus } from "./types";
+import { DEFAULT_TIMEZONE, getTimezoneAbbr } from "./timezone";
 
 // A capacity of 0 means "unlimited" rather than "no seats" — an event isn't
 // meant to be permanently unregisterable just because an admin left the
@@ -59,25 +60,27 @@ export const eventStatusConfig: Record<
   },
 };
 
-// Selalu di-pin ke Asia/Jakarta (WIB) secara eksplisit — tanpa ini,
-// Intl.DateTimeFormat ikut timezone browser si pengunjung, sehingga
-// pengunjung dari luar WIB (WITA/WIT/luar negeri) bisa lihat jam yang
-// sudah ke-convert ke zona mereka padahal tetap dilabeli "WIB".
-const JAKARTA_TZ = "Asia/Jakarta";
-
-export function formatEventDate(iso: string) {
+// timeZone selalu di-pin eksplisit ke zona event-nya (WIB/WITA/WIT) — tanpa
+// ini, Intl.DateTimeFormat ikut timezone browser si pengunjung, sehingga
+// pengunjung dari zona lain bisa lihat jam yang sudah ke-convert ke zona
+// mereka padahal labelnya tetap zona event aslinya.
+export function formatEventDate(iso: string, timeZone: string = DEFAULT_TIMEZONE) {
   return new Intl.DateTimeFormat("id-ID", {
     day: "numeric",
     month: "long",
     year: "numeric",
-    timeZone: JAKARTA_TZ,
+    timeZone,
   }).format(new Date(iso));
 }
 
-export function formatEventTime(iso: string) {
-  return new Intl.DateTimeFormat("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: JAKARTA_TZ,
-  }).format(new Date(iso)) + " WIB";
+export function formatEventTime(iso: string, timeZone: string = DEFAULT_TIMEZONE) {
+  return (
+    new Intl.DateTimeFormat("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone,
+    }).format(new Date(iso)) +
+    " " +
+    getTimezoneAbbr(timeZone)
+  );
 }

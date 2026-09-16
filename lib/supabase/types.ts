@@ -16,6 +16,7 @@ export type Database = {
           event_end: string;
           registration_start: string;
           registration_deadline: string;
+          timezone: string;
           max_participants: number;
           requirements: string[];
           message_enabled: boolean;
