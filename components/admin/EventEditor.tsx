@@ -307,7 +307,7 @@ export function EventEditor({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
-                <Label htmlFor="eventStart">Tanggal &amp; Waktu Mulai</Label>
+                <Label htmlFor="eventStart">Tanggal &amp; Waktu Mulai (WIB)</Label>
                 <Input
                   id="eventStart"
                   type="datetime-local"
@@ -316,7 +316,7 @@ export function EventEditor({
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="eventEnd">Tanggal &amp; Waktu Selesai</Label>
+                <Label htmlFor="eventEnd">Tanggal &amp; Waktu Selesai (WIB)</Label>
                 <Input
                   id="eventEnd"
                   type="datetime-local"
@@ -325,10 +325,13 @@ export function EventEditor({
                 />
               </div>
             </div>
+            <p className="-mt-2 text-xs text-muted-foreground">
+              Semua jam di form ini mengikuti jam lokal komputer kamu — pastikan zona waktu komputer sudah WIB (Asia/Jakarta) sebelum mengisi, karena browser tidak menandai zona waktunya secara eksplisit.
+            </p>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
-                <Label htmlFor="registrationStart">Mulai Pendaftaran</Label>
+                <Label htmlFor="registrationStart">Mulai Pendaftaran (WIB)</Label>
                 <Input
                   id="registrationStart"
                   type="datetime-local"
@@ -339,7 +342,7 @@ export function EventEditor({
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="registrationDeadline">Batas Pendaftaran</Label>
+                <Label htmlFor="registrationDeadline">Batas Pendaftaran (WIB)</Label>
                 <Input
                   id="registrationDeadline"
                   type="datetime-local"

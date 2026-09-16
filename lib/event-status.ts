@@ -59,11 +59,18 @@ export const eventStatusConfig: Record<
   },
 };
 
+// Selalu di-pin ke Asia/Jakarta (WIB) secara eksplisit — tanpa ini,
+// Intl.DateTimeFormat ikut timezone browser si pengunjung, sehingga
+// pengunjung dari luar WIB (WITA/WIT/luar negeri) bisa lihat jam yang
+// sudah ke-convert ke zona mereka padahal tetap dilabeli "WIB".
+const JAKARTA_TZ = "Asia/Jakarta";
+
 export function formatEventDate(iso: string) {
   return new Intl.DateTimeFormat("id-ID", {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: JAKARTA_TZ,
   }).format(new Date(iso));
 }
 
@@ -71,5 +78,6 @@ export function formatEventTime(iso: string) {
   return new Intl.DateTimeFormat("id-ID", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: JAKARTA_TZ,
   }).format(new Date(iso)) + " WIB";
 }
