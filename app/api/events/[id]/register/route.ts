@@ -84,7 +84,7 @@ function validateRegistrationBody(body: unknown) {
       return "Data peserta lain tidak valid.";
     }
     if (b.companions.length > MAX_TICKETS_PER_REGISTRATION - 1) {
-      return `Maksimal ${MAX_TICKETS_PER_REGISTRATION} kuota per pendaftaran.`;
+      return `Maksimal ${MAX_TICKETS_PER_REGISTRATION} peserta per pendaftaran.`;
     }
     for (let i = 0; i < b.companions.length; i++) {
       const c = b.companions[i];

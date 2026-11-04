@@ -242,7 +242,7 @@ export default function AdminAttendeesPage() {
                         {registration.name}
                         {registration.ticketCount > 1 && (
                           <Badge variant="outline" className="ml-2">
-                            {registration.ticketCount} kuota
+                            {registration.ticketCount} peserta
                           </Badge>
                         )}
                       </TableCell>
@@ -342,7 +342,7 @@ export default function AdminAttendeesPage() {
                   label="Waktu Pendaftaran"
                   value={formatEventDate(selected.createdAt, eventById.get(selected.eventId)?.timezone)}
                 />
-                <DetailRow label="Jumlah Kuota" value={`${selected.ticketCount} orang`} />
+                <DetailRow label="Jumlah Peserta" value={`${selected.ticketCount} orang`} />
                 {selected.companions.length > 0 && (
                   <div className="col-span-2">
                     <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

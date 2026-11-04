@@ -12,7 +12,7 @@ import { FormField, formInputClassName } from "./FormField";
 // message rather than leaking a raw code to the user.
 const ERROR_MESSAGES: Record<string, string> = {
   duplicate: "Email ini sudah terdaftar pada event ini.",
-  capacity: "Sisa kuota tidak cukup untuk jumlah yang dipesan.",
+  capacity: "Sisa kuota tidak cukup untuk jumlah peserta.",
   closed: "Pendaftaran untuk event ini sudah tidak tersedia.",
   invalid: "Data pendaftaran tidak lengkap atau tidak valid.",
 };
@@ -185,7 +185,7 @@ export function RegistrationForm({ event }: { event: EventItem }) {
         if (result.error === "capacity" && typeof result.remaining === "number") {
           setSubmitError(
             result.remaining > 0
-              ? `Sisa kuota hanya ${result.remaining}. Kurangi jumlah kuota yang dipesan.`
+              ? `Sisa kuota hanya ${result.remaining}. Kurangi jumlah peserta.`
               : "Kuota event ini sudah penuh."
           );
         } else if (result.error === "invalid" && typeof result.message === "string") {
@@ -238,7 +238,7 @@ export function RegistrationForm({ event }: { event: EventItem }) {
 
         {total > 1 && (
           <div className="mt-3 bg-white px-4 py-3 text-left">
-            <p className="text-xs text-foreground/50">Peserta ({total} kuota)</p>
+            <p className="text-xs text-foreground/50">Peserta ({total} orang)</p>
             <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-sm text-foreground/80">
               <li>{registered.name}</li>
               {registered.companions.map((c, i) => (
@@ -334,7 +334,7 @@ export function RegistrationForm({ event }: { event: EventItem }) {
 
       {maxTickets > 1 && (
         <FormField
-          label="Jumlah Kuota"
+          label="Jumlah Peserta"
           htmlFor="ticketCount"
           required
           hint={`Termasuk kamu. Maksimal ${maxTickets} orang per pendaftaran.`}

@@ -15,7 +15,7 @@ const CSV_COLUMNS = [
   "Tanggal Pendaftaran",
   "Status Pendaftaran",
   "Pesan",
-  "Jumlah Kuota",
+  "Jumlah Peserta",
   "Nama Peserta Lain",
 ];
 
