@@ -16,6 +16,10 @@ export type Registration = {
   message: string | null;
   fileUrl: string | null;
   fileName: string | null;
+  // Jumlah kuota yang dipesan (1 + jumlah pendamping).
+  ticketCount: number;
+  // Nama orang yang ikut bersama pendaftar (kuota ke-2 dst).
+  companions: string[];
   createdAt: string;
 };
 
@@ -32,12 +36,14 @@ function mapRegistration(row: RegistrationRow): Registration {
     message: row.message,
     fileUrl: row.file_url,
     fileName: row.file_name,
+    // `??` jaga-jaga kalau kolom belum ada (migrasi 0014 belum dijalankan).
+    ticketCount: row.ticket_count ?? 1,
+    companions: row.companions ?? [],
     createdAt: row.created_at,
   };
 }
 
 export type CreateRegistrationInput = {
-  registrationNumber: string;
   eventId: string;
   name: string;
   phone: string;
@@ -45,43 +51,62 @@ export type CreateRegistrationInput = {
   origin: string;
   dateOfBirth: string;
   message?: string | null;
+  // Nama orang yang ikut (0-4). Total kuota = 1 + companions.length.
+  companions: string[];
 };
 
 // Postgres unique_violation on (event_id, email) — PRD §24 duplicate check.
 export const DUPLICATE_REGISTRATION_ERROR = "DUPLICATE_REGISTRATION";
 
-// Goes through the register_for_event() RPC (see
-// supabase/migrations/0011_atomic_registration_insert.sql) instead of a
-// plain `.insert()`. That function runs as security definer
-// and takes `select ... for update` on the event row before checking
-// capacity/window, so two concurrent registrations for the last open seat
-// serialize instead of both reading the same stale registered_count — the
-// old RLS `with check` couldn't do that. It's also now the *only* insert
-// path RLS allows, so this isn't just an optimization a client could route
-// around by calling `.insert()` directly with the anon key.
+// Event masih buka, tapi sisa slot kurang dari jumlah kuota yang dipesan.
+export const CAPACITY_EXCEEDED_ERROR = "CAPACITY_EXCEEDED";
+export const REGISTRATION_CLOSED_ERROR = "REGISTRATION_CLOSED";
+
+function generateRegistrationNumber() {
+  // Generated server-side, never trusting a client-supplied value — this
+  // identifier ends up in the admin's CSV export, so it shouldn't be
+  // attacker-controlled input either.
+  const random = Math.random().toString(36).slice(2, 7).toUpperCase().padEnd(5, "0");
+  return `MC-${random}`;
+}
+
+// Goes through the register_for_event_tickets() RPC (see
+// supabase/migrations/0014_ticket_quantity.sql). Fungsi itu mengunci baris
+// event (`for update`) lalu cek sisa kuota untuk 1 + jumlah pendamping, jadi
+// rebutan slot terakhir antre, bukan sama-sama lolos. Insert lewat RPC ini
+// satu-satunya jalur yang diizinkan RLS (lihat 0011).
 export async function createRegistration(
   client: SupabaseClient<Database>,
   input: CreateRegistrationInput
 ): Promise<{ registrationNumber: string }> {
-  const { error } = await client.rpc("register_for_event", {
-    p_event_id: input.eventId,
-    p_registration_number: input.registrationNumber,
-    p_name: input.name,
-    p_phone: input.phone,
-    p_email: input.email,
-    p_origin: input.origin,
-    p_date_of_birth: input.dateOfBirth,
-    p_message: input.message ?? null,
-  });
+  // Nomor registrasi acak bisa (sangat jarang) bentrok dengan yang sudah
+  // ada — itu bukan salah pendaftar, jadi ulangi dengan nomor baru.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const registrationNumber = generateRegistrationNumber();
+    const { error } = await client.rpc("register_for_event_tickets", {
+      p_event_id: input.eventId,
+      p_registration_number: registrationNumber,
+      p_name: input.name,
+      p_phone: input.phone,
+      p_email: input.email,
+      p_origin: input.origin,
+      p_date_of_birth: input.dateOfBirth,
+      p_message: input.message ?? null,
+      p_companions: input.companions,
+    });
 
-  if (error) {
+    if (!error) return { registrationNumber };
+
     if (error.code === "23505") {
+      if (error.message.includes("registration_number")) continue;
       throw new Error(DUPLICATE_REGISTRATION_ERROR);
     }
+    if (error.message === CAPACITY_EXCEEDED_ERROR) throw new Error(CAPACITY_EXCEEDED_ERROR);
+    if (error.message === REGISTRATION_CLOSED_ERROR) throw new Error(REGISTRATION_CLOSED_ERROR);
     throw error;
   }
 
-  return { registrationNumber: input.registrationNumber };
+  throw new Error("Gagal membuat nomor registrasi unik.");
 }
 
 // Admin-only — RLS restricts reads to authenticated users.
@@ -104,6 +129,9 @@ export type UpdateRegistrationInput = {
   origin: string;
   dateOfBirth: string;
   message?: string | null;
+  // Hanya nama yang bisa diubah; jumlahnya harus tetap sama dengan
+  // ticket_count - 1 (dijaga constraint di DB).
+  companions: string[];
 };
 
 // Admin-only — RLS restricts writes to authenticated users.
@@ -121,6 +149,7 @@ export async function updateRegistration(
       origin: input.origin,
       date_of_birth: input.dateOfBirth,
       message: input.message ?? null,
+      companions: input.companions,
     })
     .eq("id", id)
     .select("*")

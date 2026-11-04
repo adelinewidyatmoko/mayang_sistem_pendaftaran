@@ -15,6 +15,8 @@ const CSV_COLUMNS = [
   "Tanggal Pendaftaran",
   "Status Pendaftaran",
   "Pesan",
+  "Jumlah Kuota",
+  "Nama Peserta Lain",
 ];
 
 // Guest-submitted fields (name/email/origin/message) are untrusted input.
@@ -66,6 +68,8 @@ export function buildRegistrationsCsv(
       formatEventDate(registration.createdAt, event?.timezone),
       status,
       registration.message ?? "",
+      registration.ticketCount,
+      registration.companions.join("; "),
     ].map((field) => escapeCsvField(String(field)));
   });
 

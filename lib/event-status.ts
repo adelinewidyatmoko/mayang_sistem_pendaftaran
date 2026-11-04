@@ -8,6 +8,11 @@ export function isUnlimitedCapacity(maxParticipants: number) {
   return maxParticipants <= 0;
 }
 
+// Batas kuota yang bisa dipesan dalam satu pendaftaran (pendaftar + 4
+// pendamping). Juga dijaga di migrasi 0014 (check ticket_count between 1 and
+// 5, dan register_for_event_tickets) — ubah keduanya bersamaan.
+export const MAX_TICKETS_PER_REGISTRATION = 5;
+
 // PRD §15: status is always derived from dates/capacity — never stored or
 // manually set by an admin.
 export function deriveEventStatus(event: EventItem, now: Date = new Date()): EventStatus {

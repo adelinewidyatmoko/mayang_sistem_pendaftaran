@@ -5,7 +5,9 @@ import { Registration } from "@/lib/data/registrations";
 export function getDashboardStats(events: EventItem[], registrations: Registration[]) {
   const publishedEvents = events.filter((event) => event.published);
   const activeEvents = publishedEvents.filter((event) => deriveEventStatus(event) === "open");
-  const totalRegistrations = registrations.length;
+  // Dihitung per kuota (1 pendaftaran bisa memesan sampai 5 kuota), sama
+  // seperti events.registered_count.
+  const totalRegistrations = registrations.reduce((sum, r) => sum + r.ticketCount, 0);
 
   const averagePerEvent =
     publishedEvents.length === 0 ? 0 : totalRegistrations / publishedEvents.length;
@@ -21,7 +23,9 @@ export function getDashboardStats(events: EventItem[], registrations: Registrati
 
 export function getEventSummary(events: EventItem[], registrations: Registration[]) {
   return events.map((event) => {
-    const registeredCount = registrations.filter((r) => r.eventId === event.id).length;
+    const registeredCount = registrations
+      .filter((r) => r.eventId === event.id)
+      .reduce((sum, r) => sum + r.ticketCount, 0);
     return {
       event,
       registeredCount,

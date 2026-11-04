@@ -110,7 +110,8 @@ export default function AdminAttendeesPage() {
         registration.name.toLowerCase().includes(query) ||
         registration.email.toLowerCase().includes(query) ||
         registration.phone.includes(query) ||
-        registration.registrationNumber.toLowerCase().includes(query)
+        registration.registrationNumber.toLowerCase().includes(query) ||
+        registration.companions.some((c) => c.toLowerCase().includes(query))
       );
     });
   }, [registrations, search, eventFilter, statusFilter, eventById]);
@@ -165,7 +166,7 @@ export default function AdminAttendeesPage() {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cari nama, email, telepon, atau Registration ID..."
+                placeholder="Cari nama (termasuk peserta lain), email, telepon, atau Registration ID..."
                 className="pl-8"
               />
             </div>
@@ -237,7 +238,14 @@ export default function AdminAttendeesPage() {
                       <TableCell className="font-mono text-xs text-muted-foreground">
                         {registration.registrationNumber}
                       </TableCell>
-                      <TableCell className="font-medium">{registration.name}</TableCell>
+                      <TableCell className="font-medium">
+                        {registration.name}
+                        {registration.ticketCount > 1 && (
+                          <Badge variant="outline" className="ml-2">
+                            {registration.ticketCount} kuota
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         {event?.title ?? registration.eventId}
                       </TableCell>
@@ -288,7 +296,7 @@ export default function AdminAttendeesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Event</TableHead>
-                <TableHead className="text-right">Registrasi</TableHead>
+                <TableHead className="text-right">Kuota Terisi</TableHead>
                 <TableHead className="text-right">Kapasitas</TableHead>
                 <TableHead className="text-right">Sisa</TableHead>
                 <TableHead>Status</TableHead>
@@ -334,6 +342,23 @@ export default function AdminAttendeesPage() {
                   label="Waktu Pendaftaran"
                   value={formatEventDate(selected.createdAt, eventById.get(selected.eventId)?.timezone)}
                 />
+                <DetailRow label="Jumlah Kuota" value={`${selected.ticketCount} orang`} />
+                {selected.companions.length > 0 && (
+                  <div className="col-span-2">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Peserta Lain
+                    </dt>
+                    <dd className="mt-1 text-foreground">
+                      <ol className="list-decimal space-y-0.5 pl-5">
+                        {selected.companions.map((c, i) => (
+                          <li key={i} value={i + 2}>
+                            {c}
+                          </li>
+                        ))}
+                      </ol>
+                    </dd>
+                  </div>
+                )}
                 <div className="col-span-2">
                   <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Pesan
@@ -367,8 +392,11 @@ export default function AdminAttendeesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus pendaftaran ini?</AlertDialogTitle>
             <AlertDialogDescription>
-              Pendaftaran {deleting?.name} ({deleting?.registrationNumber}) akan dihapus permanen.
-              Tindakan ini tidak bisa dibatalkan.
+              Pendaftaran {deleting?.name} ({deleting?.registrationNumber}) akan dihapus permanen
+              {deleting && deleting.ticketCount > 1
+                ? `, termasuk ${deleting.ticketCount - 1} peserta lain. ${deleting.ticketCount} kuota akan kembali tersedia`
+                : ""}
+              . Tindakan ini tidak bisa dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -400,10 +428,16 @@ function EditRegistrationForm({
     dateOfBirth: registration.dateOfBirth,
     message: registration.message ?? "",
   });
+  // Hanya nama pendamping yang bisa diubah, jumlah kuota tetap.
+  const [companions, setCompanions] = useState<string[]>(registration.companions);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit() {
+    if (companions.some((c) => c.trim().length < 2)) {
+      setError("Nama peserta lain wajib diisi (minimal 2 karakter).");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -415,6 +449,7 @@ function EditRegistrationForm({
         origin: values.origin.trim(),
         dateOfBirth: values.dateOfBirth,
         message: values.message.trim() || null,
+        companions: companions.map((c) => c.trim()),
       });
       onSaved(updated);
     } catch {
@@ -491,6 +526,19 @@ function EditRegistrationForm({
             className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
+
+        {companions.map((companion, i) => (
+          <div key={i} className="grid gap-1.5">
+            <Label htmlFor={`edit-companion-${i}`}>Nama Peserta {i + 2}</Label>
+            <Input
+              id={`edit-companion-${i}`}
+              value={companion}
+              onChange={(e) =>
+                setCompanions((prev) => prev.map((c, j) => (j === i ? e.target.value : c)))
+              }
+            />
+          </div>
+        ))}
 
         {error && <p className="text-sm font-medium text-destructive">{error}</p>}
       </div>

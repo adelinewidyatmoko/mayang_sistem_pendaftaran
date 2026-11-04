@@ -54,6 +54,8 @@ export type Database = {
           message: string | null;
           file_url: string | null;
           file_name: string | null;
+          ticket_count: number;
+          companions: string[];
           created_at: string;
           updated_at: string;
         };
@@ -81,6 +83,20 @@ export type Database = {
           p_origin: string;
           p_date_of_birth: string;
           p_message: string | null;
+        };
+        Returns: string;
+      };
+      register_for_event_tickets: {
+        Args: {
+          p_event_id: string;
+          p_registration_number: string;
+          p_name: string;
+          p_phone: string;
+          p_email: string;
+          p_origin: string;
+          p_date_of_birth: string;
+          p_message: string | null;
+          p_companions: string[];
         };
         Returns: string;
       };

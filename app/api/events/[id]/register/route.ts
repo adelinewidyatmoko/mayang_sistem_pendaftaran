@@ -1,14 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { createRegistration, DUPLICATE_REGISTRATION_ERROR } from "@/lib/data/registrations";
+import {
+  CAPACITY_EXCEEDED_ERROR,
+  createRegistration,
+  DUPLICATE_REGISTRATION_ERROR,
+  REGISTRATION_CLOSED_ERROR,
+} from "@/lib/data/registrations";
 import { getEventById } from "@/lib/data/events";
-import { deriveEventStatus } from "@/lib/event-status";
+import {
+  deriveEventStatus,
+  isUnlimitedCapacity,
+  MAX_TICKETS_PER_REGISTRATION,
+} from "@/lib/event-status";
 
 const PHONE_REGEX = /^(\+62|0)8[0-9]{7,12}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_TEXT_LENGTH = 150;
 const MAX_MESSAGE_LENGTH = 1000;
+const MIN_COMPANION_NAME_LENGTH = 2;
 
 // A human can't read and fill 5 fields faster than this — catches scripts
 // that POST directly without ever rendering the page. Generous on purpose:
@@ -67,15 +77,28 @@ function validateRegistrationBody(body: unknown) {
     }
   }
 
-  return null;
-}
+  // Pendamping opsional (tidak dikirim = pesan 1 kuota). Kalau ada, tiap
+  // nama wajib diisi — panitia perlu tahu siapa yang datang.
+  if (b.companions !== undefined) {
+    if (!Array.isArray(b.companions)) {
+      return "Data peserta lain tidak valid.";
+    }
+    if (b.companions.length > MAX_TICKETS_PER_REGISTRATION - 1) {
+      return `Maksimal ${MAX_TICKETS_PER_REGISTRATION} kuota per pendaftaran.`;
+    }
+    for (let i = 0; i < b.companions.length; i++) {
+      const c = b.companions[i];
+      if (
+        typeof c !== "string" ||
+        c.trim().length < MIN_COMPANION_NAME_LENGTH ||
+        c.length > MAX_TEXT_LENGTH
+      ) {
+        return `Nama peserta ${i + 2} tidak valid.`;
+      }
+    }
+  }
 
-function generateRegistrationNumber() {
-  // Generated server-side, never trusting a client-supplied value — this
-  // identifier ends up in the admin's CSV export, so it shouldn't be
-  // attacker-controlled input either.
-  const random = Math.random().toString(36).slice(2, 7).toUpperCase();
-  return `MC-${random}`;
+  return null;
 }
 
 export async function POST(
@@ -100,14 +123,17 @@ export async function POST(
   if (validationError) {
     return NextResponse.json({ error: "invalid", message: validationError }, { status: 400 });
   }
-  const { name, phone, email, origin, dateOfBirth, message } = body as {
+  const { name, phone, email, origin, dateOfBirth, message, companions } = body as {
     name: string;
     phone: string;
     email: string;
     origin: string;
     dateOfBirth: string;
     message?: string | null;
+    companions?: string[];
   };
+  const companionNames = (companions ?? []).map((c) => c.trim());
+  const ticketCount = 1 + companionNames.length;
 
   // Check the registration window/capacity explicitly before attempting the
   // insert, so a normal "this event isn't open" case gets a clean "closed"
@@ -119,23 +145,47 @@ export async function POST(
     return NextResponse.json({ error: "closed" }, { status: 403 });
   }
 
+  // Cek awal biar pesannya bisa menyebut sisa slot. Cek final yang pasti
+  // benar tetap di DB (dengan lock), lihat CAPACITY_EXCEEDED di bawah.
+  const remaining = isUnlimitedCapacity(event.maxParticipants)
+    ? null
+    : Math.max(event.maxParticipants - event.registeredCount, 0);
+  if (remaining !== null && ticketCount > remaining) {
+    return NextResponse.json({ error: "capacity", remaining }, { status: 409 });
+  }
+
   try {
     const registration = await createRegistration(supabase, {
-      registrationNumber: generateRegistrationNumber(),
       eventId: id,
       name: name.trim(),
       phone: phone.trim(),
-      email: email.trim(),
+      // Huruf kecil: unique (event_id, email) di DB membedakan huruf besar,
+      // jadi tanpa ini "A@x.com" dan "a@x.com" lolos sebagai dua pesanan.
+      email: email.trim().toLowerCase(),
       origin: origin.trim(),
       dateOfBirth,
       message: message?.trim() || null,
+      companions: companionNames,
     });
 
-    return NextResponse.json({ registrationNumber: registration.registrationNumber });
+    return NextResponse.json({
+      registrationNumber: registration.registrationNumber,
+      ticketCount,
+    });
   } catch (error) {
     if (error instanceof Error && error.message === DUPLICATE_REGISTRATION_ERROR) {
       return NextResponse.json({ error: "duplicate" }, { status: 409 });
     }
-    return NextResponse.json({ error: "closed" }, { status: 403 });
+    if (error instanceof Error && error.message === CAPACITY_EXCEEDED_ERROR) {
+      // Slot keburu diambil pendaftar lain di antara cek di atas dan insert.
+      return NextResponse.json({ error: "capacity", remaining: null }, { status: 409 });
+    }
+    if (error instanceof Error && error.message === REGISTRATION_CLOSED_ERROR) {
+      return NextResponse.json({ error: "closed" }, { status: 403 });
+    }
+    // Gangguan sistem (DB down, migrasi belum dijalankan, dll) — jangan
+    // disamarkan jadi "pendaftaran ditutup".
+    console.error("register_for_event_tickets failed", error);
+    return NextResponse.json({ error: "server" }, { status: 500 });
   }
 }

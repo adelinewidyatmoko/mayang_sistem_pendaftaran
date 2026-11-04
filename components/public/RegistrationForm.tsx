@@ -1,7 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { EventItem } from "@/lib/types";
+import { isUnlimitedCapacity, MAX_TICKETS_PER_REGISTRATION } from "@/lib/event-status";
 import { AlertIcon, CheckIcon } from "./icons";
 import { FormField, formInputClassName } from "./FormField";
 
@@ -9,7 +11,8 @@ import { FormField, formInputClassName } from "./FormField";
 // sync with that route. Anything not listed here falls back to a generic
 // message rather than leaking a raw code to the user.
 const ERROR_MESSAGES: Record<string, string> = {
-  duplicate: "Anda sudah terdaftar pada event ini.",
+  duplicate: "Email ini sudah terdaftar pada event ini.",
+  capacity: "Sisa kuota tidak cukup untuk jumlah yang dipesan.",
   closed: "Pendaftaran untuk event ini sudah tidak tersedia.",
   invalid: "Data pendaftaran tidak lengkap atau tidak valid.",
 };
@@ -22,6 +25,8 @@ type FormValues = {
   dateOfBirth: string;
   message: string;
 };
+
+type Registered = { registrationNumber: string; name: string; companions: string[] };
 
 const emptyValues: FormValues = {
   name: "",
@@ -58,19 +63,23 @@ function validate(values: FormValues) {
 
 // Per-device "already registered" memory so the same browser doesn't need
 // to hit the server again to see it's already registered for this event —
-// the email/phone unique constraint in the database remains the real,
+// the email unique constraint in the database remains the real,
 // server-side source of truth; this is just a local UX shortcut.
 function storageKey(eventId: string) {
   return `mc-registration:${eventId}`;
 }
 
-function readStoredRegistration(eventId: string): { registrationNumber: string; name: string } | null {
+function readStoredRegistration(eventId: string): Registered | null {
   try {
     const raw = window.localStorage.getItem(storageKey(eventId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (typeof parsed?.registrationNumber === "string" && typeof parsed?.name === "string") {
-      return parsed;
+      // Data lama (sebelum ada kuota) tidak punya `companions`.
+      const companions = Array.isArray(parsed.companions)
+        ? parsed.companions.filter((c: unknown): c is string => typeof c === "string")
+        : [];
+      return { registrationNumber: parsed.registrationNumber, name: parsed.name, companions };
     }
     return null;
   } catch {
@@ -78,12 +87,9 @@ function readStoredRegistration(eventId: string): { registrationNumber: string; 
   }
 }
 
-function storeRegistration(eventId: string, registrationNumber: string, name: string) {
+function storeRegistration(eventId: string, registered: Registered) {
   try {
-    window.localStorage.setItem(
-      storageKey(eventId),
-      JSON.stringify({ registrationNumber, name })
-    );
+    window.localStorage.setItem(storageKey(eventId), JSON.stringify(registered));
   } catch {
     // Private browsing / storage disabled — safe to ignore, it's just a
     // convenience shortcut, not the source of truth.
@@ -93,12 +99,23 @@ function storeRegistration(eventId: string, registrationNumber: string, name: st
 export function RegistrationForm({ event }: { event: EventItem }) {
   const [values, setValues] = useState<FormValues>(emptyValues);
   const [errors, setErrors] = useState<Partial<Record<keyof FormValues, string>>>({});
+  // Nama orang yang ikut — panjangnya selalu (jumlah kuota - 1).
+  const [companions, setCompanions] = useState<string[]>([]);
+  const [companionErrors, setCompanionErrors] = useState<(string | null)[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [registrationNumber, setRegistrationNumber] = useState<string | null>(null);
-  const [registeredName, setRegisteredName] = useState<string | null>(null);
+  const [registered, setRegistered] = useState<Registered | null>(null);
   const [website, setWebsite] = useState(""); // honeypot — see the field below
   const formRenderedAt = useRef<number | null>(null);
+  const router = useRouter();
+
+  // Pilihan jumlah kuota dibatasi sisa slot saat halaman dimuat. Bisa sudah
+  // basi — cek final tetap di server.
+  const remaining = isUnlimitedCapacity(event.maxParticipants)
+    ? MAX_TICKETS_PER_REGISTRATION
+    : Math.max(event.maxParticipants - event.registeredCount, 0);
+  const maxTickets = Math.max(1, Math.min(MAX_TICKETS_PER_REGISTRATION, remaining));
+  const ticketCount = companions.length + 1;
 
   useEffect(() => {
     // localStorage isn't available during server render, so this can only
@@ -107,8 +124,7 @@ export function RegistrationForm({ event }: { event: EventItem }) {
     const stored = readStoredRegistration(event.id);
     if (stored) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setRegistrationNumber(stored.registrationNumber);
-      setRegisteredName(stored.name);
+      setRegistered(stored);
     }
   }, [event.id]);
 
@@ -123,11 +139,25 @@ export function RegistrationForm({ event }: { event: EventItem }) {
     setValues((prev) => ({ ...prev, [key]: value }));
   }
 
+  // Ubah jumlah kuota: nama yang sudah diketik tetap disimpan.
+  function handleTicketCountChange(count: number) {
+    setCompanions((prev) => Array.from({ length: count - 1 }, (_, i) => prev[i] ?? ""));
+    setCompanionErrors([]);
+  }
+
+  function handleCompanionChange(index: number, value: string) {
+    setCompanions((prev) => prev.map((c, i) => (i === index ? value : c)));
+  }
+
   async function handleSubmit(formEvent: FormEvent) {
     formEvent.preventDefault();
     const validationErrors = validate(values);
+    const nameErrors = companions.map((c) =>
+      c.trim().length < 2 ? "Nama wajib diisi (minimal 2 karakter)." : null
+    );
     setErrors(validationErrors);
-    if (Object.keys(validationErrors).length > 0) return;
+    setCompanionErrors(nameErrors);
+    if (Object.keys(validationErrors).length > 0 || nameErrors.some(Boolean)) return;
 
     setSubmitError(null);
     setSubmitting(true);
@@ -143,6 +173,7 @@ export function RegistrationForm({ event }: { event: EventItem }) {
           origin: values.origin.trim(),
           dateOfBirth: values.dateOfBirth,
           message: values.message.trim() || null,
+          companions: companions.map((c) => c.trim()),
           website,
           formRenderedAt: formRenderedAt.current ?? Date.now(),
         }),
@@ -151,16 +182,30 @@ export function RegistrationForm({ event }: { event: EventItem }) {
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        setSubmitError(
-          ERROR_MESSAGES[result.error] ?? "Terjadi kesalahan. Silakan coba lagi."
-        );
+        if (result.error === "capacity" && typeof result.remaining === "number") {
+          setSubmitError(
+            result.remaining > 0
+              ? `Sisa kuota hanya ${result.remaining}. Kurangi jumlah kuota yang dipesan.`
+              : "Kuota event ini sudah penuh."
+          );
+        } else if (result.error === "invalid" && typeof result.message === "string") {
+          setSubmitError(result.message);
+        } else {
+          setSubmitError(ERROR_MESSAGES[result.error] ?? "Terjadi kesalahan. Silakan coba lagi.");
+        }
         return;
       }
 
-      const newRegistrationNumber = result.registrationNumber;
-      setRegistrationNumber(newRegistrationNumber);
-      setRegisteredName(values.name.trim());
-      storeRegistration(event.id, newRegistrationNumber, values.name.trim());
+      const done: Registered = {
+        registrationNumber: result.registrationNumber,
+        name: values.name.trim(),
+        companions: companions.map((c) => c.trim()),
+      };
+      setRegistered(done);
+      storeRegistration(event.id, done);
+      // Ambil ulang data halaman (server) biar bar "x dari y kuota" langsung
+      // ikut berubah tanpa reload.
+      router.refresh();
     } catch {
       setSubmitError("Terjadi kesalahan. Silakan coba lagi.");
     } finally {
@@ -168,7 +213,8 @@ export function RegistrationForm({ event }: { event: EventItem }) {
     }
   }
 
-  if (registrationNumber) {
+  if (registered) {
+    const total = registered.companions.length + 1;
     return (
       <div className="border border-teal/20 bg-teal/5 p-6 text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center bg-teal text-white">
@@ -178,16 +224,29 @@ export function RegistrationForm({ event }: { event: EventItem }) {
           Pendaftaran Berhasil!
         </h3>
         <p className="mt-2 text-sm text-foreground/60">
-          Terima kasih, {registeredName}. Kamu terdaftar untuk:
+          Terima kasih, {registered.name}.{" "}
+          {total > 1 ? `${total} orang terdaftar untuk:` : "Kamu terdaftar untuk:"}
         </p>
         <p className="mt-1 text-sm font-semibold text-teal-deep">{event.title}</p>
 
         <div className="mt-4 bg-white px-4 py-3">
           <p className="text-xs text-foreground/50">Nomor Registrasi</p>
           <p className="font-heading text-lg font-semibold tracking-wide text-teal-deep">
-            {registrationNumber}
+            {registered.registrationNumber}
           </p>
         </div>
+
+        {total > 1 && (
+          <div className="mt-3 bg-white px-4 py-3 text-left">
+            <p className="text-xs text-foreground/50">Peserta ({total} kuota)</p>
+            <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-sm text-foreground/80">
+              <li>{registered.name}</li>
+              {registered.companions.map((c, i) => (
+                <li key={i}>{c}</li>
+              ))}
+            </ol>
+          </div>
+        )}
       </div>
     );
   }
@@ -273,6 +332,47 @@ export function RegistrationForm({ event }: { event: EventItem }) {
         </FormField>
       </div>
 
+      {maxTickets > 1 && (
+        <FormField
+          label="Jumlah Kuota"
+          htmlFor="ticketCount"
+          required
+          hint={`Termasuk kamu. Maksimal ${maxTickets} orang per pendaftaran.`}
+        >
+          <select
+            id="ticketCount"
+            value={ticketCount}
+            onChange={(e) => handleTicketCountChange(Number(e.target.value))}
+            className={formInputClassName}
+          >
+            {Array.from({ length: maxTickets }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                {n} orang
+              </option>
+            ))}
+          </select>
+        </FormField>
+      )}
+
+      {companions.map((companion, i) => (
+        <FormField
+          key={i}
+          label={`Nama Peserta ${i + 2}`}
+          htmlFor={`companion-${i}`}
+          required
+          error={companionErrors[i] ?? undefined}
+        >
+          <input
+            id={`companion-${i}`}
+            type="text"
+            value={companion}
+            onChange={(e) => handleCompanionChange(i, e.target.value)}
+            placeholder="Nama lengkap"
+            className={formInputClassName}
+          />
+        </FormField>
+      ))}
+
       {event.messageEnabled && (
         <FormField label={event.messageLabel || "Pesan"} htmlFor="message" hint="Opsional">
           <textarea
@@ -298,7 +398,11 @@ export function RegistrationForm({ event }: { event: EventItem }) {
         disabled={submitting}
         className="mt-2 inline-flex w-full items-center justify-center bg-teal px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {submitting ? "Memproses..." : "Kirim Pendaftaran"}
+        {submitting
+          ? "Memproses..."
+          : ticketCount > 1
+            ? `Daftar ${ticketCount} Orang`
+            : "Kirim Pendaftaran"}
       </button>
     </form>
   );

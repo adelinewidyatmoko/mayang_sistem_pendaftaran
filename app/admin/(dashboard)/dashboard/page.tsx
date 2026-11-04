@@ -77,9 +77,9 @@ export default function AdminDashboardPage() {
           icon={Activity}
         />
         <StatCard
-          label="Total Registrasi"
+          label="Total Peserta"
           value={stats.totalRegistrations}
-          description="Semua pendaftaran event yang tercatat."
+          description="Jumlah kuota terisi di semua event."
           icon={Users}
         />
       </div>
@@ -143,7 +143,14 @@ export default function AdminDashboardPage() {
                   const config = event ? eventStatusConfig[deriveEventStatus(event)] : null;
                   return (
                     <TableRow key={registration.id}>
-                      <TableCell className="font-medium">{registration.name}</TableCell>
+                      <TableCell className="font-medium">
+                        {registration.name}
+                        {registration.ticketCount > 1 && (
+                          <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                            +{registration.ticketCount - 1}
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         {event?.title ?? registration.eventId}
                       </TableCell>
