@@ -13,8 +13,18 @@ import {
   isUnlimitedCapacity,
 } from "@/lib/event-status";
 import { eventCoverGradients } from "@/lib/event-visuals";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import { getEventById } from "@/lib/data/events";
+
+// Each event page is built on its first visit, then served from cache and
+// refreshed at most once a minute. The quota itself is enforced in the
+// database on submit, so a count up to 60s stale can't oversell seats.
+export const revalidate = 60;
+
+// Empty list = prerender nothing at build, cache each page on demand.
+export async function generateStaticParams() {
+  return [];
+}
 
 function gradientForId(id: string) {
   const sum = [...id].reduce((total, char) => total + char.charCodeAt(0), 0);
@@ -23,7 +33,7 @@ function gradientForId(id: string) {
 
 export default async function EventDetailPage({ params }: PageProps<"/events/[id]">) {
   const { id } = await params;
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const event = await getEventById(supabase, id);
 
   if (!event || !event.published) {
@@ -62,7 +72,7 @@ export default async function EventDetailPage({ params }: PageProps<"/events/[id
                 className={`relative flex h-56 items-center justify-center overflow-hidden bg-gradient-to-br sm:h-72 ${gradient}`}
               >
                 {event.coverImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- data URI covers from the in-memory admin editor aren't optimizable by next/image
+                  // eslint-disable-next-line @next/next/no-img-element -- already resized on upload; next/image would bill Vercel image optimization
                   <img src={event.coverImage} alt="" className="h-full w-full object-cover" />
                 ) : (
                   <CalendarIcon className="h-16 w-16 text-white/80" />

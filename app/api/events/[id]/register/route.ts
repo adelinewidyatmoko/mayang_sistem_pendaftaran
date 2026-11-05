@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -167,6 +168,13 @@ export async function POST(
       message: message?.trim() || null,
       companions: companionNames,
     });
+
+    // Public pages are cached (revalidate = 60). Drop the cached copies that
+    // show this event's quota so the form's router.refresh() sees the new
+    // count right away instead of up to a minute later.
+    revalidatePath(`/events/${id}`);
+    revalidatePath("/");
+    revalidatePath("/event");
 
     return NextResponse.json({
       registrationNumber: registration.registrationNumber,

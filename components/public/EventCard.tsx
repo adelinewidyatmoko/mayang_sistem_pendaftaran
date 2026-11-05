@@ -22,8 +22,14 @@ export function EventCard({ event, index = 0 }: { event: EventItem; index?: numb
         className={`relative flex h-40 items-center justify-center overflow-hidden bg-gradient-to-br ${gradient}`}
       >
         {event.coverImage ? (
-          // eslint-disable-next-line @next/next/no-img-element -- data URI covers from the in-memory admin editor aren't optimizable by next/image
-          <img src={event.coverImage} alt="" className="h-full w-full object-cover" />
+          // eslint-disable-next-line @next/next/no-img-element -- already resized on upload; next/image would bill Vercel image optimization
+          <img
+            src={event.coverImage}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover"
+          />
         ) : (
           <CalendarIcon className="h-10 w-10 text-white/80" />
         )}

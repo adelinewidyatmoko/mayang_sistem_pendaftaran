@@ -9,6 +9,7 @@ import { EventItem } from "@/lib/types";
 import { deriveEventStatus, eventStatusConfig } from "@/lib/event-status";
 import { useAdminEvents } from "@/lib/admin/events-store";
 import { EventInput } from "@/lib/data/events";
+import { uploadCover } from "@/lib/admin/cover-upload";
 import {
   DEFAULT_TIMEZONE,
   INDONESIA_TIMEZONES,
@@ -96,6 +97,7 @@ export function EventEditor({
   const [dragActive, setDragActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const [formValues, setFormValues] = useState<FormValues>(
     event ? toFormValues(event) : emptyForm
@@ -114,13 +116,18 @@ export function EventEditor({
         } as EventItem)
       : null;
 
-  function readCoverFile(file: File | undefined) {
+  async function readCoverFile(file: File | undefined) {
     if (!file || !file.type.startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setFormValues((v) => ({ ...v, coverImage: String(reader.result) }));
-    };
-    reader.readAsDataURL(file);
+    setUploading(true);
+    setSubmitError(null);
+    try {
+      const url = await uploadCover(file);
+      setFormValues((v) => ({ ...v, coverImage: url }));
+    } catch {
+      setSubmitError("Gagal mengunggah gambar cover. Silakan coba lagi.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   function handleDrop(e: DragEvent<HTMLDivElement>) {
@@ -197,8 +204,14 @@ export function EventEditor({
           <Button variant="outline" onClick={() => router.push("/admin/events")}>
             Batal
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Menyimpan..." : mode === "edit" ? "Simpan" : "Buat Event"}
+          <Button onClick={handleSubmit} disabled={submitting || uploading}>
+            {uploading
+              ? "Mengunggah gambar..."
+              : submitting
+                ? "Menyimpan..."
+                : mode === "edit"
+                  ? "Simpan"
+                  : "Buat Event"}
           </Button>
         </div>
       </div>
@@ -226,7 +239,7 @@ export function EventEditor({
             >
               {formValues.coverImage ? (
                 <>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- in-memory data URI, not an optimizable asset */}
+                  {/* eslint-disable-next-line @next/next/no-img-element -- already resized on upload; next/image would bill Vercel image optimization */}
                   <img
                     src={formValues.coverImage}
                     alt=""
